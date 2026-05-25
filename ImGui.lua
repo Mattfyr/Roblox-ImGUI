@@ -89,9 +89,15 @@ function ImGui:FetchUI()
 	if not IsStudio then
 		local UIAssetId = ImGui.UIAssetId
 		UI = game:GetObjects(UIAssetId)[1]
+		if UI ~= nil and UI.Name == "ScreenGui" then
+			UI.Name = "DepsoImGui"
+		end
 	else --// Studio
 		local UIName = "DepsoImGui"
-		UI = PlayerGui:FindFirstChild(UIName) or script.DepsoImGui
+		UI = PlayerGui:FindFirstChild(UIName)
+			or script:FindFirstChild(UIName)
+			or script:FindFirstChildWhichIsA("ScreenGui")
+			or script:FindFirstChild("ScreenGui")
 	end
 
 	_G[CacheName] = UI
@@ -157,6 +163,7 @@ local AddionalStyles = {
 		Label.Text = Class.Label
 		function Class:SetText(Text)
 			Label.Text = Text
+			GuiObject.Name = tostring(Text)
 			return Class
 		end
 
@@ -304,6 +311,11 @@ function ImGui:MergeMetatables(Class, Instance: GuiObject)
 	end
 
 	Metadata.__newindex = function(self, Key, Value)
+		if Key == "Text" and type(Class.SetText) == "function" then
+			Class:SetText(Value)
+			return
+		end
+
 		local Success = pcall(function()
 			Instance[Key] = Value
 		end)
@@ -365,7 +377,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		Button.Activated:Connect(Callback)
 
 		--// Apply animations
-		ImGui:ApplyAnimations(Button, "Buttons")
+		ImGui:ApplyAnimations(Button, "Buttons", nil, WindowConfig.NoAnim)
 		return ObjectClass
 	end
 
@@ -386,7 +398,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		Image.Activated:Connect(Callback)
 
 		--// Apply animations
-		ImGui:ApplyAnimations(Image, "Buttons")
+		ImGui:ApplyAnimations(Image, "Buttons", nil, WindowConfig.NoAnim)
 		return ObjectClass
 	end
 
@@ -419,11 +431,10 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Tick.BackgroundTransparency = 0
 		else
 			Tickbox:FindFirstChildOfClass("UIPadding"):Remove()
-			Tickbox:FindFirstChildOfClass("UICorner"):Remove()
 		end
 
 		--// Apply animations
-		ImGui:ApplyAnimations(CheckBox, "Buttons", Tickbox)
+		ImGui:ApplyAnimations(CheckBox, "Buttons", Tickbox, WindowConfig.NoAnim)
 
 		local Value = Config.Value or false
 
@@ -442,12 +453,17 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 
 			--// Animations
 			local Size = Value and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
-			ImGui:Tween(Tick, {
-				Size = Size
-			}, nil, NoAnimation)
-			ImGui:Tween(Label, {
-				TextTransparency = Value and 0 or 0.3
-			}, nil, NoAnimation)
+			if NoAnimation or WindowConfig.NoAnim then
+				Tick.Size = Size
+				Label.TextTransparency = Value and 0 or 0.3
+			else
+				ImGui:Tween(Tick, {
+					Size = Size
+				})
+				ImGui:Tween(Label, {
+					TextTransparency = Value and 0 or 0.3
+				})
+			end
 			return Config
 		end
 		Config:SetTicked(Value, true)
@@ -530,7 +546,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		TextBox.MultiLine = Config.MultiLine == true
 
 		--// Apply animations
-		ImGui:ApplyAnimations(TextInput, "Inputs")
+		ImGui:ApplyAnimations(TextInput, "Inputs", nil, WindowConfig.NoAnim)
 
 		local function Callback(...)
 			local func = Config.Callback or NullFunction
@@ -770,16 +786,16 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 
 		--// Apply animations
 		if Config.IsTree then
-			ImGui:ApplyAnimations(Titlebar, "Tabs")
+			ImGui:ApplyAnimations(Titlebar, "Tabs", nil, WindowConfig.NoAnim)
 		else
-			ImGui:ApplyAnimations(Titlebar, "Buttons")
+			ImGui:ApplyAnimations(Titlebar, "Buttons", nil, WindowConfig.NoAnim)
 		end
 
 		--// Open Animations
 		function Config:SetOpen(Open)
-			local Animate = Config.NoAnimation ~= true
+			local Animate = Config.NoAnimation ~= true and WindowConfig.NoAnim ~= true
 			Config.Open = Open
-			ImGui:HeaderAnimate(Header, Animate, Open, Titlebar)
+			ImGui:HeaderAnimate(Header, Animate, Open, Titlebar, nil, WindowConfig.NoAnim)
 			return self
 		end
 
@@ -921,7 +937,13 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 				}
 			end
 
-			ImGui:Tween(Grab, Props)
+			if WindowConfig.NoAnim then
+				for Key, PropValue in next, Props do
+					Grab[Key] = PropValue
+				end
+			else
+				ImGui:Tween(Grab, Props)
+			end
 
 			Config.Value = Value
 			ValueText.Text = ValueFormat:format(Value, MaxValue) 
@@ -1075,8 +1097,8 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		end
 
 		function Config:SetOpen(Open: true)
-			local Animate = Config.NoAnimation ~= true
-			ImGui:HeaderAnimate(Combo, Animate, Open, Combo, Toggle)
+			local Animate = Config.NoAnimation ~= true and WindowConfig.NoAnim ~= true
+			ImGui:HeaderAnimate(Combo, Animate, Open, Combo, Toggle, WindowConfig.NoAnim)
 			Config.Open = Open
 
 			if Open then
@@ -1084,6 +1106,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 					Parent = Combo,
 					Items = Config.Items or {},
 					Selected = Config.SetValue,
+					NoAnim = WindowConfig.NoAnim,
 					Closed = function()
 						if not ComboHovering.Hovering then 
 							Config:SetOpen(false)
@@ -1167,7 +1190,7 @@ function ImGui:Dropdown(Config)
 		NewItem.Parent = Selection
 		NewItem.Visible = true
 
-		self:ApplyAnimations(NewItem, "Tabs")
+		self:ApplyAnimations(NewItem, "Tabs", nil, Config.NoAnim)
 		NewItem.Activated:Connect(function()
 			return Selected(NewItem)
 		end)
@@ -1197,7 +1220,7 @@ function ImGui:Tween(Instance: GuiObject, Props: SharedTable, tweenInfo, NoAnima
 	return Tween
 end
 
-function ImGui:ApplyAnimations(Instance: GuiObject, Class: string, Target: GuiObject?)
+function ImGui:ApplyAnimations(Instance: GuiObject, Class: string, Target: GuiObject?, NoAnimation: boolean?)
 	local Animatons = ImGui.Animations
 	local ColorProps = Animatons[Class]
 
@@ -1211,6 +1234,13 @@ function ImGui:ApplyAnimations(Instance: GuiObject, Class: string, Target: GuiOb
 		if typeof(Props) ~= "table" then continue end
 		local Target = Target or Instance
 		local Callback = function()
+			if NoAnimation then
+				for Key, Value in next, Props do
+					Target[Key] = Value
+				end
+				return
+			end
+
 			ImGui:Tween(Target, Props)
 		end
 
@@ -1227,13 +1257,13 @@ function ImGui:ApplyAnimations(Instance: GuiObject, Class: string, Target: GuiOb
 	return Connections 
 end
 
-function ImGui:HeaderAnimate(Header: Instance, Animation, Open, TitleBar: Instance, Toggle)
+function ImGui:HeaderAnimate(Header: Instance, Animation, Open, TitleBar: Instance, Toggle, NoAnimation: boolean?)
 	local ToggleButtion = Toggle or TitleBar.Toggle.ToggleButton
 
 	--// Togle animation
 	ImGui:Tween(ToggleButtion, {
 		Rotation = Open and 90 or 0,
-	}):Play()
+	}, nil, NoAnimation)
 
 	--// Container animation
 	local Container: Frame = Header:FindFirstChild("ChildContainer")
@@ -1255,15 +1285,26 @@ function ImGui:HeaderAnimate(Header: Instance, Animation, Open, TitleBar: Instan
 	end
 
 	--// Animate
-	local Tween = ImGui:Tween(Container, {
-		Size = UDim2.new(1, -10, 0, Open and ContentSize.Y or 0),
-		Visible = Open
-	})
-	Tween.Completed:Connect(function()
-		if not Open then return end
-		Container.AutomaticSize = Enum.AutomaticSize.Y
-		Container.Size = UDim2.new(1, -10, 0, 0)
-	end)
+	if NoAnimation then
+		Container.Visible = Open
+		if Open then
+			Container.AutomaticSize = Enum.AutomaticSize.Y
+			Container.Size = UDim2.new(1, -10, 0, 0)
+		else
+			Container.AutomaticSize = Enum.AutomaticSize.None
+			Container.Size = UDim2.new(1, -10, 0, ContentSize.Y)
+		end
+	else
+		local Tween = ImGui:Tween(Container, {
+			Size = UDim2.new(1, -10, 0, Open and ContentSize.Y or 0),
+			Visible = Open
+		})
+		Tween.Completed:Connect(function()
+			if not Open then return end
+			Container.AutomaticSize = Enum.AutomaticSize.Y
+			Container.Size = UDim2.new(1, -10, 0, 0)
+		end)
+	end
 end
 
 function ImGui:ApplyDraggable(Frame: Frame, Header: Frame)
@@ -1393,12 +1434,14 @@ function ImGui:ConnectHover(Config)
 	return Config
 end
 
-function ImGui:ApplyWindowSelectEffect(Window: GuiObject, TitleBar)
+function ImGui:ApplyWindowSelectEffect(Window: GuiObject, TitleBar, Dynamic: boolean?, SelectedColor: Color3?)
 	local UIStroke = Window:FindFirstChildOfClass("UIStroke")
+	local IsDynamic = Dynamic ~= false
+	local ActiveSelectedColor = SelectedColor or Color3.fromRGB(41, 75, 121)
 
 	local Colors = {
 		Selected = {
-			BackgroundColor3 = TitleBar.BackgroundColor3
+			BackgroundColor3 = ActiveSelectedColor
 		},
 		Deselected = {
 			BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -1408,10 +1451,14 @@ function ImGui:ApplyWindowSelectEffect(Window: GuiObject, TitleBar)
 	local function SetSelected(Selected)
 		local Animations = ImGui.Animations
 		local Type = Selected and "Selected" or "Deselected"
-		local TweenInfo = ImGui:GetAnimation(true) 
 
 		ImGui:Tween(TitleBar, Colors[Type])
 		ImGui:Tween(UIStroke, Animations.WindowBorder[Type])
+	end
+
+	if not IsDynamic then
+		SetSelected(true)
+		return
 	end
 
 	self:ConnectHover({
@@ -1462,6 +1509,7 @@ function ImGui:CreateWindow(WindowConfig)
 	local Window: Frame = Prefabs.Window:Clone()
 	Window.Parent = ImGui.ScreenGui
 	Window.Visible = true
+	Window.ClipsDescendants = true
 	WindowConfig.Window = Window
 
 	local Content = Window.Content
@@ -1485,7 +1533,7 @@ function ImGui:CreateWindow(WindowConfig)
 
 	local Toggle = TitleBar.Left.Toggle
 	Toggle.Visible = WindowConfig.NoCollapse ~= true
-	ImGui:ApplyAnimations(Toggle.ToggleButton, "Tabs")
+		ImGui:ApplyAnimations(Toggle.ToggleButton, "Tabs", nil, WindowConfig.NoAnim)
 
 	local ToolBar = Content.ToolBar
 	ToolBar.Visible = WindowConfig.TabsBar ~= false
@@ -1523,23 +1571,24 @@ function ImGui:CreateWindow(WindowConfig)
 	--// Open/Close
 	WindowConfig.Open = true
 	function WindowConfig:SetOpen(Open: true, NoAnimation: false)
+		local NoAnim = NoAnimation or WindowConfig.NoAnim
 		local WindowAbSize = Window.AbsoluteSize 
 		local TitleBarSize = TitleBar.AbsoluteSize 
 
 		self.Open = Open
 
 		--// Call animations
-		ImGui:HeaderAnimate(TitleBar, true, Open, TitleBar, Toggle.ToggleButton)
+		ImGui:HeaderAnimate(TitleBar, true, Open, TitleBar, Toggle.ToggleButton, NoAnim)
 		ImGui:Tween(Resize, {
 			TextTransparency = Open and 0.6 or 1,
 			Interactable = Open
-		}, nil, NoAnimation)
+		}, nil, NoAnim)
 		ImGui:Tween(Window, {
 			Size = Open and self.Size or UDim2.fromOffset(WindowAbSize.X, TitleBarSize.Y)
-		}, nil, NoAnimation)
+		}, nil, NoAnim)
 		ImGui:Tween(Body, {
 			Visible = Open
-		}, nil, NoAnimation)
+		}, nil, NoAnim)
 		return self
 	end
 
@@ -1596,7 +1645,7 @@ function ImGui:CreateWindow(WindowConfig)
 
 		--// Apply animations
 		Config = ImGui:ContainerClass(Content, Config, Window)
-		ImGui:ApplyAnimations(TabButton, "Tabs")
+		ImGui:ApplyAnimations(TabButton, "Tabs", nil, WindowConfig.NoAnim)
 
 		--// Automatic sizes
 		self:UpdateBody()
@@ -1638,9 +1687,10 @@ function ImGui:CreateWindow(WindowConfig)
 	--// Tab change system 
 	function WindowConfig:ShowTab(TabClass: SharedTable)
 		local TargetPage: Frame = TabClass.Content
+		local NoAnim = WindowConfig.NoAnim or TabClass.NoAnimation
 
 		--// Page animation
-		if not TargetPage.Visible and not TabClass.NoAnimation then
+		if not TargetPage.Visible and not NoAnim then
 			TargetPage.Position = UDim2.fromOffset(0, 5)
 		end
 
@@ -1650,9 +1700,13 @@ function ImGui:CreateWindow(WindowConfig)
 		end
 
 		--// Page animation
-		ImGui:Tween(TargetPage, {
-			Position = UDim2.fromOffset(0, 0)
-		})
+		if NoAnim then
+			TargetPage.Position = UDim2.fromOffset(0, 0)
+		else
+			ImGui:Tween(TargetPage, {
+				Position = UDim2.fromOffset(0, 0)
+			})
+		end
 		return self
 	end
 
@@ -1675,7 +1729,7 @@ function ImGui:CreateWindow(WindowConfig)
 
 	--// Window section events
 	if not WindowConfig.NoSelectEffect then
-		ImGui:ApplyWindowSelectEffect(Window, TitleBar)
+		ImGui:ApplyWindowSelectEffect(Window, TitleBar, WindowConfig.Dynamic, WindowConfig.SelectedColor)
 	end
 
 	return ImGui:MergeMetatables(WindowConfig, Window)
