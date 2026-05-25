@@ -155,9 +155,13 @@ local AddionalStyles = {
 		if not Label then return end
 
 		Label.Text = Class.Label
-		function Class:SetLabel(Text)
+		function Class:SetText(Text)
 			Label.Text = Text
 			return Class
+		end
+
+		function Class:SetLabel(Text)
+			return Class:SetText(Text)
 		end
 	end,
 
@@ -300,11 +304,12 @@ function ImGui:MergeMetatables(Class, Instance: GuiObject)
 	end
 
 	Metadata.__newindex = function(self, Key, Value)
-		local Key2 = Class[Key]
-		if Key2 ~= nil or typeof(Value) == "function" then
-			Class[Key] = Value
-		else
+		local Success = pcall(function()
 			Instance[Key] = Value
+		end)
+
+		if not Success then
+			Class[Key] = Value
 		end
 	end
 
