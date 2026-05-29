@@ -1569,6 +1569,10 @@ function ImGui:Destroy()
 		self.FullScreenGui = nil
 	end
 
+	if rawget(_G, "DepsoImGuiActive") == self then
+		_G.DepsoImGuiActive = nil
+	end
+
 	_G.DepsoImGui = nil
 
 	return self
@@ -1865,6 +1869,28 @@ function ImGui:CreateModal(Config)
 end
 
 local GuiParent = IsStudio and PlayerGui or CoreGui
+
+do
+	local ExistingInstance = rawget(_G, "DepsoImGuiActive")
+	if type(ExistingInstance) == "table" and ExistingInstance ~= ImGui and type(ExistingInstance.Destroy) == "function" then
+		pcall(function()
+			ExistingInstance:Destroy()
+		end)
+	end
+
+	for _, Child in next, GuiParent:GetChildren() do
+		if not Child:IsA("ScreenGui") or Child.Name ~= "ScreenGui" then
+			continue
+		end
+
+		if Child.DisplayOrder == 9999 or Child.DisplayOrder == 99999 then
+			pcall(function()
+				Child:Destroy()
+			end)
+		end
+	end
+end
+
 ImGui.ScreenGui = ImGui:CreateInstance("ScreenGui", GuiParent, {
 	DisplayOrder = 9999,
 	ResetOnSpawn = false
@@ -1874,5 +1900,7 @@ ImGui.FullScreenGui = ImGui:CreateInstance("ScreenGui", GuiParent, {
 	ResetOnSpawn = false,
 	ScreenInsets = Enum.ScreenInsets.None
 })
+
+_G.DepsoImGuiActive = ImGui
 
 return ImGui
