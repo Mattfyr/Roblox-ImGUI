@@ -12,6 +12,35 @@ else
 	ImGui = loadstring(game:HttpGet(SourceURL))()
 end
 
+local DemoDestroyed = false
+local DemoConnections = {}
+
+local function TrackDemoConnection(Connection)
+	DemoConnections[#DemoConnections + 1] = Connection
+	return Connection
+end
+
+local function DestroyDemo()
+	if DemoDestroyed then
+		return
+	end
+
+	DemoDestroyed = true
+
+	for Index = #DemoConnections, 1, -1 do
+		local Connection = DemoConnections[Index]
+		DemoConnections[Index] = nil
+
+		if Connection then
+			pcall(function()
+				Connection:Disconnect()
+			end)
+		end
+	end
+
+	ImGui:Destroy()
+end
+
 --// Window 
 local Window = ImGui:CreateWindow({
 	Title = "Depso Imgui Demo",
@@ -35,14 +64,26 @@ local Table = TablesTab:Table({
 coroutine.wrap(function()
 	local Rows = 10
 	local random = Random.new()
-	while wait(1) do
+	while task.wait(1) do
+		if DemoDestroyed then
+			break
+		end
+
 		Table:ClearRows()
 		
 		for i = 1,Rows do
+			if DemoDestroyed then
+				return
+			end
+
 			local Row = Table:CreateRow()
 
 			local Columns = random:NextInteger(1, 8)
 			for x = 1, Columns do
+				if DemoDestroyed then
+					return
+				end
+
 				local Column = Row:CreateColumn()
 				Column:Label({
 					Text = `#{x}`
@@ -94,10 +135,14 @@ Row2:Button({
 		Console.Enabled = not Paused
 	end,
 })
+Row2:Button({
+	Text = "Destroy UI",
+	Callback = DestroyDemo,
+})
 Row2:Fill()
 
 coroutine.wrap(function()
-	while wait() do
+	while not DemoDestroyed and task.wait() do
 		local Date = DateTime.now():FormatLocalTime("h:mm:ss A", "en-us")
 		
 		Console:AppendText(
@@ -332,7 +377,7 @@ local ProgressBar = Sliders:ProgressBar({
 })
 coroutine.wrap(function()
 	local Percentage = 0
-	while wait(0.02) do
+	while not DemoDestroyed and task.wait(0.02) do
 		Percentage += 1
 		ProgressBar:SetPercentage(Percentage % 100)
 	end
@@ -370,7 +415,7 @@ RichText:Label({
 
 coroutine.wrap(function()
 	local i = 0
-	while wait(.1) do
+	while not DemoDestroyed and task.wait(.1) do
 		i += 1
 		RainbowLabel.TextColor3 = BrickColor.Random().Color
 	end
@@ -498,10 +543,10 @@ StatsRow:Label({
 local FPSLabel = StatsRow:Label()
 local TimeLabel = Watermark:Label()
 
-RunService.RenderStepped:Connect(function(v)
+TrackDemoConnection(RunService.RenderStepped:Connect(function(v)
 	FPSLabel.Text = `FPS: {math.round(1/v)} `
 	TimeLabel.Text = `The time is {DateTime.now():FormatLocalTime("dddd h:mm:ss A", "en-us")} `
-end)
+end))
 
 local Window = ImGui:CreateWindow({
 	TabsBar = false,
@@ -525,11 +570,11 @@ local Viewport = Window:Viewport({
 --// Spin rig
 local NewRig = Viewport:SetModel(Rig, CFrame.new(0, -2.5, -5))
 
-RunService.RenderStepped:Connect(function(DeltaTime)
+TrackDemoConnection(RunService.RenderStepped:Connect(function(DeltaTime)
 	local YRotation = 30 * DeltaTime
 	local cFrame = NewRig:GetPivot() * CFrame.Angles(0,math.rad(YRotation),0)
 	NewRig:PivotTo(cFrame)
-end)
+end))
 
 
 local KeySystem = ImGui:CreateWindow({
