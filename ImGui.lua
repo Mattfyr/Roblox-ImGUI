@@ -41,6 +41,7 @@ local ImGui = {
 	},
 
 	Windows = {},
+	Connections = {},
 	Animation = TweenInfo.new(0.1),
 	UIAssetId = "rbxassetid://97291061847502"
 }
@@ -56,6 +57,28 @@ end
 function ImGui:Warn(...)
 	if self.NoWarnings then return end
 	return warn("[IMGUI]", ...)
+end
+
+function ImGui:TrackConnection(Connection: RBXScriptConnection)
+	if Connection == nil then
+		return Connection
+	end
+
+	self.Connections[#self.Connections + 1] = Connection
+	return Connection
+end
+
+function ImGui:DestroyConnections()
+	for Index = #self.Connections, 1, -1 do
+		local Connection = self.Connections[Index]
+		self.Connections[Index] = nil
+
+		if Connection then
+			pcall(function()
+				Connection:Disconnect()
+			end)
+		end
+	end
 end
 
 --// Services 
@@ -374,7 +397,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			local func = Config.Callback or NullFunction
 			return func(ObjectClass, ...)
 		end
-		Button.Activated:Connect(Callback)
+		ImGui:TrackConnection(Button.Activated:Connect(Callback))
 
 		--// Apply animations
 		ImGui:ApplyAnimations(Button, "Buttons", nil, WindowConfig.NoAnim)
@@ -395,7 +418,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			local func = Config.Callback or NullFunction
 			return func(ObjectClass, ...)
 		end
-		Image.Activated:Connect(Callback)
+		ImGui:TrackConnection(Image.Activated:Connect(Callback))
 
 		--// Apply animations
 		ImGui:ApplyAnimations(Image, "Buttons", nil, WindowConfig.NoAnim)
@@ -478,8 +501,8 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Value = not Value
 			Config:SetTicked(Value)
 		end
-		CheckBox.Activated:Connect(Clicked)
-		Tickbox.Activated:Connect(Clicked)
+		ImGui:TrackConnection(CheckBox.Activated:Connect(Clicked))
+		ImGui:TrackConnection(Tickbox.Activated:Connect(Clicked))
 
 		return ObjectClass
 	end
@@ -552,11 +575,11 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			local func = Config.Callback or NullFunction
 			return func(ObjectClass, ...)
 		end
-		TextBox:GetPropertyChangedSignal("Text"):Connect(function()
-			local Value = TextBox.Text
-			Config.Value = Value
-			return Callback(Value)
-		end)
+			ImGui:TrackConnection(TextBox:GetPropertyChangedSignal("Text"):Connect(function()
+				local Value = TextBox.Text
+				Config.Value = Value
+				return Callback(Value)
+			end))
 
 		function Config:SetValue(Text)
 			TextBox.Text = tostring(Text)
@@ -640,7 +663,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Config:UpdateLineNumbers()
 			return Config
 		end
-		
+
 		function Config:GetValue()
 			return Source.Text
 		end
@@ -669,7 +692,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		end
 
 		--// Connect events
-		Source.Changed:Connect(Config.UpdateLineNumbers)
+		ImGui:TrackConnection(Source.Changed:Connect(Config.UpdateLineNumbers))
 
 		return self:NewInstance(Console, Config)
 	end
@@ -726,8 +749,8 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 				end
 				return RowClass
 			end
-			Row.ChildAdded:Connect(RowClass.UpdateColumns)
-			Row.ChildRemoved:Connect(RowClass.UpdateColumns)
+			ImGui:TrackConnection(Row.ChildAdded:Connect(RowClass.UpdateColumns))
+			ImGui:TrackConnection(Row.ChildRemoved:Connect(RowClass.UpdateColumns))
 
 			RowsCount += 1
 			return ContainerClass:NewInstance(Row, RowClass, Table)
@@ -747,8 +770,8 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 
 		if Config.RowsFill then
 			Table.AutomaticSize = Enum.AutomaticSize.None
-			Table.ChildAdded:Connect(Config.UpdateRows)
-			Table.ChildRemoved:Connect(Config.UpdateRows)
+			ImGui:TrackConnection(Table.ChildAdded:Connect(Config.UpdateRows))
+			ImGui:TrackConnection(Table.ChildRemoved:Connect(Config.UpdateRows))
 		end
 
 		function Config:ClearRows()
@@ -804,8 +827,8 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		local function Toggle()
 			Config:SetOpen(not Config.Open)
 		end
-		Titlebar.Activated:Connect(Toggle)
-		ToggleButton.Activated:Connect(Toggle)
+		ImGui:TrackConnection(Titlebar.Activated:Connect(Toggle))
+		ImGui:TrackConnection(ToggleButton.Activated:Connect(Toggle))
 
 		--// Custom toggle image
 		if Config.Image then
@@ -976,20 +999,20 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 					Dragging = true
 
 					--// Save heavy performance
-					MouseMoveConnection = Mouse.Move:Connect(MouseMove)
+				MouseMoveConnection = ImGui:TrackConnection(Mouse.Move:Connect(MouseMove))
 				end
 			end
 		})
 
-		Slider.Activated:Connect(MouseMove)
+		ImGui:TrackConnection(Slider.Activated:Connect(MouseMove))
 
-		UserInputService.InputEnded:Connect(function(inputObject)
+		ImGui:TrackConnection(UserInputService.InputEnded:Connect(function(inputObject)
 			if not Dragging then return end
 			if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
 				Dragging = false
 				MouseMoveConnection:Disconnect()
 			end
-		end)
+		end))
 
 		return ObjectClass
 	end
@@ -1040,7 +1063,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		end
 		Config:SetValue(Key)
 
-		Keybind.Activated:Connect(function()
+		ImGui:TrackConnection(Keybind.Activated:Connect(function()
 			ValueText.Text = "..."
 			local NewKey = UserInputService.InputBegan:wait()
 			if not UserInputService.WindowFocused then return end 
@@ -1051,15 +1074,15 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 
 			wait(.1) --// 👍
 			Config:SetValue(NewKey.KeyCode)
-		end)
+		end))
 
-		Config.Connection = UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+		Config.Connection = ImGui:TrackConnection(UserInputService.InputBegan:Connect(function(Input, GameProcessed)
 			if not Config.IgnoreGameProcessed and GameProcessed then return end
 
 			if Input.KeyCode == Config.Value then
 				return Callback(Input.KeyCode)
 			end
-		end)
+		end))
 
 		ObjectClass = self:NewInstance(Keybind, Config)
 		return ObjectClass
@@ -1126,8 +1149,8 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		end
 
 		--// Connect events
-		Combo.Activated:Connect(ToggleOpen)
-		Toggle.Activated:Connect(ToggleOpen)
+		ImGui:TrackConnection(Combo.Activated:Connect(ToggleOpen))
+		ImGui:TrackConnection(Toggle.Activated:Connect(ToggleOpen))
 		ImGui:ApplyAnimations(Combo, "Buttons")
 
 		if Config.Selected then
@@ -1191,18 +1214,18 @@ function ImGui:Dropdown(Config)
 		NewItem.Visible = true
 
 		self:ApplyAnimations(NewItem, "Tabs", nil, Config.NoAnim)
-		NewItem.Activated:Connect(function()
+		ImGui:TrackConnection(NewItem.Activated:Connect(function()
 			return Selected(NewItem)
-		end)
+		end))
 	end
-	
+
 	--// Configure size of the frame
-		-- Roblox does not support UISizeConstraint on a scrolling frame grr
-	
+	-- Roblox does not support UISizeConstraint on a scrolling frame grr
+
 	local MaxSizeY = Config.MaxSizeY or 200
 	local YSize = math.clamp(Selection.AbsoluteCanvasSize.Y, Size.Y, MaxSizeY)
 	Selection.Size = UDim2.fromOffset(Size.X-Padding, YSize)
-	
+
 	return Config
 end
 
@@ -1246,7 +1269,7 @@ function ImGui:ApplyAnimations(Instance: GuiObject, Class: string, Target: GuiOb
 
 		--// Connections
 		Connections[Connection] = Callback
-		Instance[Connection]:Connect(Callback)
+		ImGui:TrackConnection(Instance[Connection]:Connect(Callback))
 	end
 
 	--// Reset colors
@@ -1299,11 +1322,11 @@ function ImGui:HeaderAnimate(Header: Instance, Animation, Open, TitleBar: Instan
 			Size = UDim2.new(1, -10, 0, Open and ContentSize.Y or 0),
 			Visible = Open
 		})
-		Tween.Completed:Connect(function()
+		ImGui:TrackConnection(Tween.Completed:Connect(function()
 			if not Open then return end
 			Container.AutomaticSize = Enum.AutomaticSize.Y
 			Container.Size = UDim2.new(1, -10, 0, 0)
-		end)
+		end))
 	end
 end
 
@@ -1326,19 +1349,19 @@ function ImGui:ApplyDraggable(Frame: Frame, Header: Frame)
 	end
 
 	--// Debounce 
-	Header.InputBegan:Connect(function(Key)
+	ImGui:TrackConnection(Header.InputBegan:Connect(function(Key)
 		if UserInputTypeAllowed(Key.UserInputType) then
 			Dragging = true
 			KeyBeganPos = Key.Position
 			BeganPos = Frame.Position
 		end
-	end)
+	end))
 
-	UserInputService.InputEnded:Connect(function(Key)
+	ImGui:TrackConnection(UserInputService.InputEnded:Connect(function(Key)
 		if UserInputTypeAllowed(Key.UserInputType) then
 			Dragging = false
 		end
-	end)
+	end))
 
 	--// Dragging
 	local function Movement(Input)
@@ -1358,12 +1381,12 @@ function ImGui:ApplyDraggable(Frame: Frame, Header: Frame)
 	end
 
 	--// Connect movement events
-	UserInputService.TouchMoved:Connect(Movement)
-	UserInputService.InputChanged:Connect(function(Input)
+	ImGui:TrackConnection(UserInputService.TouchMoved:Connect(Movement))
+	ImGui:TrackConnection(UserInputService.InputChanged:Connect(function(Input)
 		if Input.UserInputType == Enum.UserInputType.MouseMovement then 
 			return Movement(Input)
 		end
-	end)
+	end))
 end
 
 
@@ -1373,13 +1396,13 @@ function ImGui:ApplyResizable(MinSize, Frame: Frame, Dragger: TextButton, Config
 
 	MinSize = MinSize or Vector2.new(160, 90)
 
-	Dragger.MouseButton1Down:Connect(function()
+	ImGui:TrackConnection(Dragger.MouseButton1Down:Connect(function()
 		if DragStart then return end
 		OrignialSize = Frame.AbsoluteSize			
 		DragStart = Vector2.new(Mouse.X, Mouse.Y)
-	end)	
+	end))	
 
-	UserInputService.InputChanged:Connect(function(Input)
+	ImGui:TrackConnection(UserInputService.InputChanged:Connect(function(Input)
 		if not DragStart or Input.UserInputType ~= Enum.UserInputType.MouseMovement then 
 			return
 		end
@@ -1397,13 +1420,13 @@ function ImGui:ApplyResizable(MinSize, Frame: Frame, Dragger: TextButton, Config
 		if Config then
 			Config.Size = NewSize
 		end
-	end)
+	end))
 
-	UserInputService.InputEnded:Connect(function(Input)
+	ImGui:TrackConnection(UserInputService.InputEnded:Connect(function(Input)
 		if Input.UserInputType == Enum.UserInputType.MouseButton1 then
 			DragStart = nil
 		end
-	end)	
+	end))	
 end
 
 function ImGui:ConnectHover(Config)
@@ -1412,17 +1435,17 @@ function ImGui:ConnectHover(Config)
 	Config.Hovering = false
 
 	--// Connect Events
-	table.insert(Connections, Parent.MouseEnter:Connect(function()
+	table.insert(Connections, ImGui:TrackConnection(Parent.MouseEnter:Connect(function()
 		Config.Hovering = true
-	end))
-	table.insert(Connections, Parent.MouseLeave:Connect(function()
+	end)))
+	table.insert(Connections, ImGui:TrackConnection(Parent.MouseLeave:Connect(function()
 		Config.Hovering = false
-	end))
+	end)))
 
 	if Config.OnInput then
-		table.insert(Connections, UserInputService.InputBegan:Connect(function(Input)
+		table.insert(Connections, ImGui:TrackConnection(UserInputService.InputBegan:Connect(function(Input)
 			return Config.OnInput(Config.Hovering, Input)
-		end))
+		end)))
 	end
 
 	function Config:Disconnect()
@@ -1475,20 +1498,20 @@ function ImGui:SetWindowProps(Properties, IgnoreWindows)
 	local Module = {
 		OldProperties = {}
 	}
-	
+
 	--// Collect windows & set properties
 	for Window in next, ImGui.Windows do
 		if table.find(IgnoreWindows, Window) then continue end
-		
+
 		local OldValues = {}
 		Module.OldProperties[Window] = OldValues
-		
+
 		for Key, Value in next, Properties do
 			OldValues[Key] = Window[Key]
 			Window[Key] = Value
 		end
 	end
-	
+
 	--// Revert to previous values
 	function Module:Revert()
 		for Window in next, ImGui.Windows do
@@ -1500,11 +1523,62 @@ function ImGui:SetWindowProps(Properties, IgnoreWindows)
 			end
 		end
 	end
-	
+
 	return Module
 end
 
+function ImGui:DestroyWindow(Window)
+	local WindowConfig = self.Windows[Window]
+	if WindowConfig then
+		self.Windows[Window] = nil
+	end
+
+	if Window and Window.Destroy then
+		pcall(function()
+			Window:Destroy()
+		end)
+	end
+end
+
+function ImGui:Destroy()
+	if self.Destroyed then
+		return self
+	end
+
+	self.Destroyed = true
+
+	self:DestroyConnections()
+
+	for Window in next, self.Windows do
+		self:DestroyWindow(Window)
+	end
+
+	self.Windows = {}
+
+	if self.ScreenGui then
+		pcall(function()
+			self.ScreenGui:Destroy()
+		end)
+		self.ScreenGui = nil
+	end
+
+	if self.FullScreenGui then
+		pcall(function()
+			self.FullScreenGui:Destroy()
+		end)
+		self.FullScreenGui = nil
+	end
+
+	_G.DepsoImGui = nil
+
+	return self
+end
+
 function ImGui:CreateWindow(WindowConfig)
+	if self.Destroyed then
+		return self:Warn("ImGui has been destroyed")
+	end
+
 	--// Create Window frame
 	local Window: Frame = Prefabs.Window:Clone()
 	Window.Parent = ImGui.ScreenGui
@@ -1533,7 +1607,7 @@ function ImGui:CreateWindow(WindowConfig)
 
 	local Toggle = TitleBar.Left.Toggle
 	Toggle.Visible = WindowConfig.NoCollapse ~= true
-		ImGui:ApplyAnimations(Toggle.ToggleButton, "Tabs", nil, WindowConfig.NoAnim)
+	ImGui:ApplyAnimations(Toggle.ToggleButton, "Tabs", nil, WindowConfig.NoAnim)
 
 	local ToolBar = Content.ToolBar
 	ToolBar.Visible = WindowConfig.TabsBar ~= false
@@ -1554,7 +1628,7 @@ function ImGui:CreateWindow(WindowConfig)
 		end
 		return WindowConfig
 	end
-	CloseButton.Activated:Connect(WindowConfig.Close)
+	ImGui:TrackConnection(CloseButton.Activated:Connect(WindowConfig.Close))
 
 	function WindowConfig:GetHeaderSizeY(): number
 		local ToolbarY = ToolBar.Visible and ToolBar.AbsoluteSize.Y or 0
@@ -1602,15 +1676,15 @@ function ImGui:CreateWindow(WindowConfig)
 		return self
 	end
 	function WindowConfig:Remove()
-		Window:Remove()
+		ImGui:DestroyWindow(Window)
 		return self
 	end
 
-	Toggle.ToggleButton.Activated:Connect(function()
+	ImGui:TrackConnection(Toggle.ToggleButton.Activated:Connect(function()
 		local Open = not WindowConfig.Open
 		WindowConfig.Open = Open
 		return WindowConfig:SetOpen(Open)
-	end)	
+	end))	
 
 	function WindowConfig:CreateTab(Config)
 		local Name = Config.Name or ""
@@ -1635,9 +1709,9 @@ function ImGui:CreateWindow(WindowConfig)
 			Content.Size = UDim2.fromScale(0, 1)
 		end
 
-		TabButton.Activated:Connect(function()
+		ImGui:TrackConnection(TabButton.Activated:Connect(function()
 			WindowConfig:ShowTab(Config)
-		end)
+		end))
 
 		function Config:GetContentSize()
 			return Content.AbsoluteSize
@@ -1650,10 +1724,10 @@ function ImGui:CreateWindow(WindowConfig)
 		--// Automatic sizes
 		self:UpdateBody()
 		if WindowConfig.AutoSize then
-			Content:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			ImGui:TrackConnection(Content:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 				local Size = Config:GetContentSize()
 				self:SetSize(Size)
-			end)
+			end))
 		end
 
 		return Config
@@ -1736,6 +1810,10 @@ function ImGui:CreateWindow(WindowConfig)
 end
 
 function ImGui:CreateModal(Config)
+	if self.Destroyed then
+		return self:Warn("ImGui has been destroyed")
+	end
+
 	local ModalEffect = Prefabs.ModalEffect:Clone()
 	ModalEffect.BackgroundTransparency = 1
 	ModalEffect.Parent = ImGui.FullScreenGui
@@ -1763,7 +1841,7 @@ function ImGui:CreateModal(Config)
 	Config = Window:CreateTab({
 		Visible = true
 	})
-	
+
 	--// Disable other windows
 	local WindowManger = ImGui:SetWindowProps({
 		Interactable = false
@@ -1775,10 +1853,10 @@ function ImGui:CreateModal(Config)
 		local Tween = ImGui:Tween(ModalEffect, {
 			BackgroundTransparency = 1
 		})
-		Tween.Completed:Connect(function()
+		ImGui:TrackConnection(Tween.Completed:Connect(function()
 			ModalEffect:Remove()
-		end)
-		
+		end))
+
 		WindowManger:Revert()
 		WindowClose()
 	end
