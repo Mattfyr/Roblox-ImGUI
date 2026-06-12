@@ -470,23 +470,24 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		function Config:SetTicked(NewValue: boolean, NoAnimation: false)
 			Value = NewValue
 			Config.Value = Value
+			local TickedValue = Value
 
-			--// Fire callback
-			Callback(Value)
+			task.defer(function()
+				Callback(TickedValue)
 
-			--// Animations
-			local Size = Value and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
-			if NoAnimation or WindowConfig.NoAnim then
-				Tick.Size = Size
-				Label.TextTransparency = Value and 0 or 0.3
-			else
-				ImGui:Tween(Tick, {
-					Size = Size
-				})
-				ImGui:Tween(Label, {
-					TextTransparency = Value and 0 or 0.3
-				})
-			end
+				local Size = TickedValue and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
+				if NoAnimation or WindowConfig.NoAnim then
+					Tick.Size = Size
+					Label.TextTransparency = TickedValue and 0 or 0.3
+				else
+					ImGui:Tween(Tick, {
+						Size = Size
+					})
+					ImGui:Tween(Label, {
+						TextTransparency = TickedValue and 0 or 0.3
+					})
+				end
+			end)
 			return Config
 		end
 		Config:SetTicked(Value, true)
@@ -1671,7 +1672,9 @@ function ImGui:CreateWindow(WindowConfig)
 	end
 
 	function WindowConfig:SetVisible(Visible: boolean)
-		Window.Visible = Visible 
+		task.defer(function()
+			Window.Visible = Visible
+		end)
 		return self
 	end
 
