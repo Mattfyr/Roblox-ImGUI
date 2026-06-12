@@ -472,23 +472,41 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Config.Value = Value
 			local TickedValue = Value
 
+			if ImGui.Destroyed or WindowConfig.Destroyed then
+				return Config
+			end
+
 			if not Tick.Parent or not Label.Parent then
 				return Config
 			end
 
-			Callback(TickedValue)
+			local Success = pcall(function()
+				Callback(TickedValue)
 
-			local Size = TickedValue and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
-			if NoAnimation or WindowConfig.NoAnim then
-				Tick.Size = Size
-				Label.TextTransparency = TickedValue and 0 or 0.3
-			else
-				ImGui:Tween(Tick, {
-					Size = Size
-				})
-				ImGui:Tween(Label, {
-					TextTransparency = TickedValue and 0 or 0.3
-				})
+				if ImGui.Destroyed or WindowConfig.Destroyed then
+					return
+				end
+
+				if not Tick.Parent or not Label.Parent then
+					return
+				end
+
+				local Size = TickedValue and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
+				if NoAnimation or WindowConfig.NoAnim then
+					Tick.Size = Size
+					Label.TextTransparency = TickedValue and 0 or 0.3
+				else
+					ImGui:Tween(Tick, {
+						Size = Size
+					})
+					ImGui:Tween(Label, {
+						TextTransparency = TickedValue and 0 or 0.3
+					})
+				end
+			end)
+
+			if not Success then
+				return Config
 			end
 			return Config
 		end
@@ -1533,6 +1551,8 @@ end
 function ImGui:DestroyWindow(Window)
 	local WindowConfig = self.Windows[Window]
 	if WindowConfig then
+		WindowConfig.Destroyed = true
+		WindowConfig.Window = nil
 		self.Windows[Window] = nil
 	end
 
@@ -1695,6 +1715,7 @@ function ImGui:CreateWindow(WindowConfig)
 		return self
 	end
 	function WindowConfig:Remove()
+		WindowConfig.Destroyed = true
 		ImGui:DestroyWindow(Window)
 		return self
 	end
