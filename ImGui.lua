@@ -472,22 +472,24 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Config.Value = Value
 			local TickedValue = Value
 
-			task.defer(function()
-				Callback(TickedValue)
+			if not Tick.Parent or not Label.Parent then
+				return Config
+			end
 
-				local Size = TickedValue and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
-				if NoAnimation or WindowConfig.NoAnim then
-					Tick.Size = Size
-					Label.TextTransparency = TickedValue and 0 or 0.3
-				else
-					ImGui:Tween(Tick, {
-						Size = Size
-					})
-					ImGui:Tween(Label, {
-						TextTransparency = TickedValue and 0 or 0.3
-					})
-				end
-			end)
+			Callback(TickedValue)
+
+			local Size = TickedValue and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
+			if NoAnimation or WindowConfig.NoAnim then
+				Tick.Size = Size
+				Label.TextTransparency = TickedValue and 0 or 0.3
+			else
+				ImGui:Tween(Tick, {
+					Size = Size
+				})
+				ImGui:Tween(Label, {
+					TextTransparency = TickedValue and 0 or 0.3
+				})
+			end
 			return Config
 		end
 		Config:SetTicked(Value, true)
@@ -1650,6 +1652,10 @@ function ImGui:CreateWindow(WindowConfig)
 	--// Open/Close
 	WindowConfig.Open = true
 	function WindowConfig:SetOpen(Open: true, NoAnimation: false)
+		if not Window.Parent then
+			return self
+		end
+
 		local NoAnim = NoAnimation or WindowConfig.NoAnim
 		local WindowAbSize = Window.AbsoluteSize 
 		local TitleBarSize = TitleBar.AbsoluteSize 
@@ -1672,13 +1678,19 @@ function ImGui:CreateWindow(WindowConfig)
 	end
 
 	function WindowConfig:SetVisible(Visible: boolean)
-		task.defer(function()
-			Window.Visible = Visible
-		end)
+		if not Window.Parent then
+			return self
+		end
+
+		Window.Visible = Visible
 		return self
 	end
 
 	function WindowConfig:SetTitle(Text)
+		if not Window.Parent then
+			return self
+		end
+
 		TitleBar.Left.Title.Text = tostring(Text)
 		return self
 	end
@@ -1773,6 +1785,10 @@ function ImGui:CreateWindow(WindowConfig)
 
 	--// Tab change system 
 	function WindowConfig:ShowTab(TabClass: SharedTable)
+		if not Body.Parent then
+			return self
+		end
+
 		local TargetPage: Frame = TabClass.Content
 		local NoAnim = WindowConfig.NoAnim or TabClass.NoAnimation
 		WindowConfig.ActiveTab = TabClass
