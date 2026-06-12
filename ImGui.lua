@@ -82,15 +82,6 @@ function ImGui:DestroyConnections()
 	end
 end
 
-function ImGui:SynchronizeThread()
-	local Synchronize = task.synchronize
-	if type(Synchronize) ~= "function" then
-		return false
-	end
-
-	return pcall(Synchronize)
-end
-
 --// Services 
 local TweenService: TweenService = GetService("TweenService")
 local UserInputService: UserInputService = GetService("UserInputService")
@@ -243,7 +234,6 @@ function ImGui:GetName(Name: string)
 end
 
 function ImGui:CreateInstance(Class, Parent, Properties)
-	ImGui:SynchronizeThread()
 	local Instance = Instance.new(Class, Parent)
 	for Key, Value in next, Properties or {} do
 		Instance[Key] = Value
@@ -375,13 +365,14 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 	local WindowConfig = ImGui.Windows[Window]
 
 	function ContainerClass:NewInstance(Instance: Frame, Class, Parent)
-		ImGui:SynchronizeThread()
 		--// Config
 		Class = Class or {}
 
 		--// Set Parent
-		Instance.Parent = Parent or Frame
-		Instance.Visible = true
+		pcall(function()
+			Instance.Parent = Parent or Frame
+			Instance.Visible = true
+		end)
 
 		--// TODO
 		if WindowConfig.NoGradientAll then
@@ -389,11 +380,15 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		end
 
 		local Colors = WindowConfig.Colors
-		ImGui:CheckStyles(Instance, Class, Colors)
+		pcall(function()
+			ImGui:CheckStyles(Instance, Class, Colors)
+		end)
 
 		--// External callback check
 		if Class.NewInstanceCallback then
-			Class.NewInstanceCallback(Instance)
+			pcall(function()
+				Class.NewInstanceCallback(Instance)
+			end)
 		end
 
 		--// Merge the class with the properties of the instance
@@ -953,7 +948,6 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 	-- :SetPercentage
 	function ContainerClass:Slider(Config)
 		Config = Config or {}
-		ImGui:SynchronizeThread()
 		local Value = Config.Value or 0
 		local ValueFormat = Config.Format or "%.d"
 		Config.Name = Config.Label or ""
@@ -987,7 +981,6 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		end
 
 		function Config:SetValue(Value: number, Slider: false)
-			ImGui:SynchronizeThread()
 			local MinValue = Config.MinValue
 			local MaxValue = Config.MaxValue
 			local Differnce = MaxValue - MinValue
