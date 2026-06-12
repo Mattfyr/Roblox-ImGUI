@@ -487,34 +487,28 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 				return Config
 			end
 
-			local Success = pcall(function()
-				Callback(TickedValue)
+			local Size = TickedValue and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
+			if NoAnimation or WindowConfig.NoAnim then
+				Tick.Size = Size
+				Label.TextTransparency = TickedValue and 0 or 0.3
+			else
+				ImGui:Tween(Tick, {
+					Size = Size
+				})
+				ImGui:Tween(Label, {
+					TextTransparency = TickedValue and 0 or 0.3
+				})
+			end
 
+			task.defer(function()
 				if ImGui.Destroyed or WindowConfig.Destroyed then
 					return
 				end
 
-				if not Tick.Parent or not Label.Parent then
-					return
-				end
-
-				local Size = TickedValue and UDim2.fromScale(1,1) or UDim2.fromScale(0,0)
-				if NoAnimation or WindowConfig.NoAnim then
-					Tick.Size = Size
-					Label.TextTransparency = TickedValue and 0 or 0.3
-				else
-					ImGui:Tween(Tick, {
-						Size = Size
-					})
-					ImGui:Tween(Label, {
-						TextTransparency = TickedValue and 0 or 0.3
-					})
-				end
+				pcall(function()
+					Callback(TickedValue)
+				end)
 			end)
-
-			if not Success then
-				return Config
-			end
 			return Config
 		end
 		Config:SetTicked(Value, true)
@@ -1015,7 +1009,15 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Config.Value = Value
 			ValueText.Text = ValueFormat:format(Value, MaxValue) 
 
-			Callback(Value)
+			task.defer(function()
+				if ImGui.Destroyed or WindowConfig.Destroyed then
+					return
+				end
+
+				pcall(function()
+					Callback(Value)
+				end)
+			end)
 			return Config
 		end
 		Config:SetValue(Value)
