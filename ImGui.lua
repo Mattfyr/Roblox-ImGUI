@@ -1714,6 +1714,7 @@ function ImGui:CreateWindow(WindowConfig)
 		end
 
 		ImGui:TrackConnection(TabButton.Activated:Connect(function()
+			WindowConfig.ActiveTab = Config
 			WindowConfig:ShowTab(Config)
 		end))
 
@@ -1732,6 +1733,11 @@ function ImGui:CreateWindow(WindowConfig)
 				local Size = Config:GetContentSize()
 				self:SetSize(Size)
 			end))
+		end
+
+		if not WindowConfig.ActiveTab then
+			WindowConfig.ActiveTab = Config
+			WindowConfig:ShowTab(Config)
 		end
 
 		return Config
@@ -1766,6 +1772,7 @@ function ImGui:CreateWindow(WindowConfig)
 	function WindowConfig:ShowTab(TabClass: SharedTable)
 		local TargetPage: Frame = TabClass.Content
 		local NoAnim = WindowConfig.NoAnim or TabClass.NoAnimation
+		WindowConfig.ActiveTab = TabClass
 
 		--// Page animation
 		if not TargetPage.Visible and not NoAnim then
