@@ -522,8 +522,24 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Value = not Value
 			Config:SetTicked(Value)
 		end
-		ImGui:TrackConnection(CheckBox.Activated:Connect(Clicked))
-		ImGui:TrackConnection(Tickbox.Activated:Connect(Clicked))
+
+		if ImGui.Destroyed or WindowConfig.Destroyed or not CheckBox.Parent then
+			return ObjectClass
+		end
+
+		local function SafeConnect(GetConnection)
+			local Success, Connection = pcall(GetConnection)
+			if Success and Connection then
+				ImGui:TrackConnection(Connection)
+			end
+		end
+
+		SafeConnect(function()
+			return CheckBox.Activated:Connect(Clicked)
+		end)
+		SafeConnect(function()
+			return Tickbox.Activated:Connect(Clicked)
+		end)
 
 		return ObjectClass
 	end
