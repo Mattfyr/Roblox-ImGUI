@@ -42,6 +42,7 @@ local ImGui = {
 
 	Windows = {},
 	Connections = {},
+	Destroyed = false,
 	Animation = TweenInfo.new(0.1),
 	UIAssetId = "rbxassetid://97291061847502"
 }
@@ -523,7 +524,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Config:SetTicked(Value)
 		end
 
-		if ImGui.Destroyed or WindowConfig.Destroyed or not CheckBox.Parent then
+		if ImGui.Destroyed or WindowConfig.Destroyed then
 			return ObjectClass
 		end
 
@@ -1621,6 +1622,9 @@ function ImGui:CreateWindow(WindowConfig)
 	if self.Destroyed then
 		return self:Warn("ImGui has been destroyed")
 	end
+
+	WindowConfig = WindowConfig or {}
+	WindowConfig.Destroyed = false
 
 	--// Create Window frame
 	local Window: Frame = Prefabs.Window:Clone()
