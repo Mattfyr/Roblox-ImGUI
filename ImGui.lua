@@ -1148,6 +1148,18 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		local Dropdown = nil
 		local ObjectClass = self:NewInstance(Combo, Config)
 
+		local function IsLiveInstance(GuiObject: Instance?)
+			if GuiObject == nil then
+				return false
+			end
+
+			local Success, Parent = pcall(function()
+				return GuiObject.Parent
+			end)
+
+			return Success and Parent ~= nil
+		end
+
 		local ComboHovering = ImGui:ConnectHover({
 			Parent = Combo
 		})
@@ -1223,6 +1235,10 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		end
 
 		function Config:RefreshDisplay()
+			if not IsLiveInstance(ValueText) then
+				return Config
+			end
+
 			ValueText.Text = Config:GetDisplayText()
 			return Config
 		end
@@ -1265,6 +1281,10 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 
 			local Items = Config.Items or {}
 			local DictValue = Items[Value]
+			if not IsLiveInstance(ValueText) then
+				return Callback(DictValue or Value, true, ...)
+			end
+
 			ValueText.Text = Value
 			Config.Selected = Value
 
