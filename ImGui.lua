@@ -1137,6 +1137,8 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 	function ContainerClass:Combo(Config)
 		Config = Config or {}
 		Config.Open = false
+		Config.MultiSelect = Config.MultiSelect == true
+		Config.SelectedValues = Config.SelectedValues or {}
 
 		local Combo: TextButton = Prefabs.Combo:Clone()
 		local Toggle: ImageButton = Combo.Toggle.ToggleButton
@@ -1150,19 +1152,88 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Parent = Combo
 		})
 
-		local function Callback(Value, ...)
+		local function Callback(Value, ShouldClose, ...)
 			local func = Config.Callback or NullFunction
-			Config:SetOpen(false)
+			if ShouldClose ~= false then
+				Config:SetOpen(false)
+			end
 			return func(ObjectClass, Value, ...)
 		end
 
+		function Config:IsSelected(Value)
+			if not Config.MultiSelect then
+				return Config.Selected == Value
+			end
+
+			return Config.SelectedValues[Value] == true
+		end
+
+		function Config:GetDisplayText()
+			if not Config.MultiSelect then
+				return tostring(Config.Selected or Config.Placeholder or "")
+			end
+
+			local Values = {}
+			for Index, Index2 in next, Config.Items or {} do
+				local ItemText = tostring(typeof(Index) ~= "number" and Index or Index2)
+				if Config.SelectedValues[ItemText] then
+					Values[#Values + 1] = ItemText
+				end
+			end
+
+			if #Values == 0 then
+				return tostring(Config.Placeholder or "")
+			end
+
+			return table.concat(Values, ", ")
+		end
+
+		function Config:RefreshDisplay()
+			ValueText.Text = Config:GetDisplayText()
+			return Config
+		end
+
 		function Config:SetValue(Value, ...)
+			if Config.MultiSelect then
+				Config.SelectedValues = {}
+				if typeof(Value) == "table" then
+					for _, Entry in next, Value do
+						Config.SelectedValues[tostring(Entry)] = true
+					end
+				elseif Value ~= nil then
+					Config.SelectedValues[tostring(Value)] = true
+				end
+
+				Config:RefreshDisplay()
+				if Dropdown then
+					Dropdown:Refresh()
+				end
+
+				return Callback(Config.SelectedValues, false, ...)
+			end
+
 			local Items = Config.Items or {}
 			local DictValue = Items[Value]
 			ValueText.Text = Value
 			Config.Selected = Value
 
-			return Callback(DictValue or Value) 
+			return Callback(DictValue or Value, true, ...) 
+		end
+
+		function Config:ToggleValue(Value, ...)
+			if not Config.MultiSelect then
+				return Config:SetValue(Value, ...)
+			end
+
+			local Key = tostring(Value)
+			Config.SelectedValues[Key] = not Config.SelectedValues[Key] or nil
+			Config:RefreshDisplay()
+
+			if Dropdown then
+				Dropdown:Refresh()
+			end
+
+			return Callback(Config.SelectedValues, false, ...)
 		end
 
 		function Config:SetOpen(Open: true)
@@ -1174,7 +1245,9 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 				Dropdown = ImGui:Dropdown({
 					Parent = Combo,
 					Items = Config.Items or {},
-					Selected = Config.SetValue,
+					Selected = Config.MultiSelect and Config.ToggleValue or Config.SetValue,
+					MultiSelect = Config.MultiSelect,
+					CloseOnSelect = not Config.MultiSelect,
 					NoAnim = WindowConfig.NoAnim,
 					Closed = function()
 						if not ComboHovering.Hovering then 
@@ -1199,7 +1272,13 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		ImGui:TrackConnection(Toggle.Activated:Connect(ToggleOpen))
 		ImGui:ApplyAnimations(Combo, "Buttons")
 
-		if Config.Selected then
+		if Config.MultiSelect then
+			if typeof(Config.Selected) == "table" then
+				Config:SetValue(Config.Selected)
+			else
+				Config:RefreshDisplay()
+			end
+		elseif Config.Selected then
 			Config:SetValue(Config.Selected)
 		end
 
@@ -1243,8 +1322,35 @@ function ImGui:Dropdown(Config)
 		return Selection:Remove()
 	end
 
+	function Config:Refresh()
+		for Index, Child in next, Selection:GetChildren() do
+			if not Child:IsA("TextButton") or Child == Selection.Template then
+				continue
+			end
+
+			local BaseText = Child:GetAttribute("BaseText")
+			if not BaseText then
+				continue
+			end
+
+			local IsSelected = false
+			if Config.MultiSelect and Config.SelectedValues then
+				IsSelected = Config.SelectedValues[tostring(BaseText)] == true
+			elseif Config.Selected then
+				IsSelected = tostring(BaseText) == tostring(Config.Selected)
+			end
+
+			Child.Text = IsSelected and ("✓ " .. tostring(BaseText)) or tostring(BaseText)
+		end
+	end
+
 	local function Selected(self)
-		local Value = self.Text
+		local Value = self:GetAttribute("BaseText") or self.Text
+		if not Config.CloseOnSelect then
+			Config:Selected(Value)
+			return Config:Refresh()
+		end
+
 		Config:Close()
 		return Config:Selected(Value)
 	end
@@ -1255,7 +1361,9 @@ function ImGui:Dropdown(Config)
 
 	for Index, Index2 in next, Config.Items do
 		local NewItem: TextButton = ItemTemplate:Clone()
-		NewItem.Text = typeof(Index) ~= "number" and tostring(Index) or tostring(Index2)
+		local ItemText = typeof(Index) ~= "number" and tostring(Index) or tostring(Index2)
+		NewItem.Text = ItemText
+		NewItem:SetAttribute("BaseText", ItemText)
 		NewItem.Parent = Selection
 		NewItem.Visible = true
 
