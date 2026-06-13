@@ -1245,18 +1245,13 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 
 		function Config:SetValue(Value, ...)
 			if Config.MultiSelect then
-				local SelectedValues = Config.SelectedValues
-				if type(SelectedValues) ~= "table" then
-					SelectedValues = {}
-				else
-					for Key in next, SelectedValues do
-						SelectedValues[Key] = nil
-					end
-				end
-
 				local SourceValues = Value
 				if typeof(Value) == "table" then
 					SourceValues = table.clone(Value)
+				end
+
+				local SelectedValues = {}
+				if type(SourceValues) == "table" then
 					for Key, Entry in next, SourceValues do
 						if type(Entry) == "boolean" then
 							if Entry then
