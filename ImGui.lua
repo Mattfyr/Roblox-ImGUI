@@ -1275,15 +1275,27 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			end
 
 			local Items = Config.Items or {}
-			local DictValue = Items[Value]
-			if not IsLiveInstance(ValueText) then
-				return Callback(DictValue or Value, true, ...)
+			local ResolvedValue = Value
+			if typeof(ResolvedValue) == "table" then
+				for _, Entry in next, ResolvedValue do
+					if type(Entry) ~= "boolean" then
+						ResolvedValue = Entry
+						break
+					end
+				end
 			end
 
-			ValueText.Text = Value
-			Config.Selected = Value
+			ResolvedValue = tostring(ResolvedValue or "")
+			local DictValue = Items[ResolvedValue]
+			if not IsLiveInstance(ValueText) then
+				Config.Selected = ResolvedValue
+				return Callback(DictValue or ResolvedValue, true, ...)
+			end
 
-			return Callback(DictValue or Value, true, ...) 
+			ValueText.Text = ResolvedValue
+			Config.Selected = ResolvedValue
+
+			return Callback(DictValue or ResolvedValue, true, ...) 
 		end
 
 		function Config:ToggleValue(Value, ...)
