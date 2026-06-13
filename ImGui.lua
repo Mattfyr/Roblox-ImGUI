@@ -1168,14 +1168,48 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			return Config.SelectedValues[Value] == true
 		end
 
+		function Config:GetOrderedItems()
+			local Items = Config.Items or {}
+			local OrderedItems = {}
+			local ArrayLike = true
+
+			for Key, Value in next, Items do
+				if typeof(Key) ~= "number" then
+					ArrayLike = false
+				end
+
+				OrderedItems[#OrderedItems + 1] = {
+					Text = tostring(typeof(Key) ~= "number" and Key or Value),
+					Value = Value,
+					Key = Key,
+				}
+			end
+
+			if ArrayLike then
+				table.sort(OrderedItems, function(Left, Right)
+					return Left.Key < Right.Key
+				end)
+			else
+				table.sort(OrderedItems, function(Left, Right)
+					if Left.Text == Right.Text then
+						return tostring(Left.Key) < tostring(Right.Key)
+					end
+
+					return Left.Text < Right.Text
+				end)
+			end
+
+			return OrderedItems
+		end
+
 		function Config:GetDisplayText()
 			if not Config.MultiSelect then
 				return tostring(Config.Selected or Config.Placeholder or "")
 			end
 
 			local Values = {}
-			for Index, Index2 in next, Config.Items or {} do
-				local ItemText = tostring(typeof(Index) ~= "number" and Index or Index2)
+			for _, Item in ipairs(Config:GetOrderedItems()) do
+				local ItemText = Item.Text
 				if Config.SelectedValues[ItemText] then
 					Values[#Values + 1] = ItemText
 				end
@@ -1261,7 +1295,7 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			if Open then
 				Dropdown = ImGui:Dropdown({
 					Parent = Combo,
-					Items = Config.Items or {},
+					Items = Config:GetOrderedItems(),
 					Selected = Config.MultiSelect and Config.ToggleValue or Config.SetValue,
 					MultiSelect = Config.MultiSelect,
 					CloseOnSelect = not Config.MultiSelect,
@@ -1376,9 +1410,9 @@ function ImGui:Dropdown(Config)
 	local ItemTemplate: TextButton = Selection.Template
 	ItemTemplate.Visible = false
 
-	for Index, Index2 in next, Config.Items do
+	for _, Item in ipairs(Config.Items) do
 		local NewItem: TextButton = ItemTemplate:Clone()
-		local ItemText = typeof(Index) ~= "number" and tostring(Index) or tostring(Index2)
+		local ItemText = tostring(Item.Text or Item.Value)
 		NewItem.Text = ItemText
 		NewItem:SetAttribute("BaseText", ItemText)
 		NewItem.Parent = Selection
