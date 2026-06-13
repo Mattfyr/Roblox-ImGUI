@@ -1195,21 +1195,38 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 
 		function Config:SetValue(Value, ...)
 			if Config.MultiSelect then
-				Config.SelectedValues = {}
-				if typeof(Value) == "table" then
-					for _, Entry in next, Value do
-						Config.SelectedValues[tostring(Entry)] = true
+				local SelectedValues = Config.SelectedValues
+				if type(SelectedValues) ~= "table" then
+					SelectedValues = {}
+				else
+					for Key in next, SelectedValues do
+						SelectedValues[Key] = nil
 					end
-				elseif Value ~= nil then
-					Config.SelectedValues[tostring(Value)] = true
 				end
 
+				local SourceValues = Value
+				if typeof(Value) == "table" then
+					SourceValues = table.clone(Value)
+					for Key, Entry in next, SourceValues do
+						if type(Entry) == "boolean" then
+							if Entry then
+								SelectedValues[tostring(Key)] = true
+							end
+						else
+							SelectedValues[tostring(Entry)] = true
+						end
+					end
+				elseif Value ~= nil then
+					SelectedValues[tostring(Value)] = true
+				end
+
+				Config.SelectedValues = SelectedValues
 				Config:RefreshDisplay()
 				if Dropdown then
 					Dropdown:Refresh()
 				end
 
-				return Callback(Config.SelectedValues, false, ...)
+				return Callback(SelectedValues, false, ...)
 			end
 
 			local Items = Config.Items or {}
