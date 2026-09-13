@@ -45,7 +45,11 @@ end
 local Window = ImGui:CreateWindow({
 	Title = "Depso Imgui Demo",
 	Size = UDim2.new(0, 350, 0, 370),
-	Position = UDim2.new(0.5, 0, 0, 70)
+	Position = UDim2.new(0.5, 0, 0, 70),
+	NoSelectEffect = true,
+	NoAnim = true,
+	BackgroundTransparency = 0,
+	Border = false
 })
 Window:Center()
 print(Window.Name)
