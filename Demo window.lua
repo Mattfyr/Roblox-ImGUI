@@ -60,7 +60,7 @@ local TablesTab = Window:CreateTab({
 })
 local Table = TablesTab:Table({
 	RowBackground = true,
-	Border = true,
+	Border = false,
 	RowsFill = false,
 	Size = UDim2.fromScale(1, 0)
 })
