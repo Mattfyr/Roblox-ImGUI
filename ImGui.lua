@@ -1944,6 +1944,23 @@ function ImGui:CreateWindow(WindowConfig)
 	end
 
 	WindowConfig = WindowConfig or {}
+
+	if WindowConfig.NoSelectEffect == nil then
+		WindowConfig.NoSelectEffect = true
+	end
+
+	if WindowConfig.NoAnim == nil then
+		WindowConfig.NoAnim = true
+	end
+
+	if WindowConfig.BackgroundTransparency == nil then
+		WindowConfig.BackgroundTransparency = 0
+	end
+
+	if WindowConfig.Border == nil then
+		WindowConfig.Border = false
+	end
+
 	WindowConfig.Destroyed = false
 
 	--// Create Window frame
