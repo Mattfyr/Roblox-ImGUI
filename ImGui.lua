@@ -1023,7 +1023,6 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		Config:SetValue(Value)
 
 		local Dragging = false
-		local MouseMoveConnection = nil
 
 		local function MouseMove()
 			if Config.ReadOnly then return end
@@ -1036,27 +1035,25 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 			Config:SetValue(Percentage, true)
 		end
 
-		--// Connect mouse events
-		local SliderHovered = ImGui:ConnectHover({
-			Parent = Slider,
-			OnInput = function(MouseHovering, Input)
-				if not MouseHovering then return end
-				if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-					Dragging = true
-
-					--// Save heavy performance
-				MouseMoveConnection = ImGui:TrackConnection(Mouse.Move:Connect(MouseMove))
-				end
+		ImGui:TrackConnection(Slider.InputBegan:Connect(function(Input)
+			if Config.ReadOnly then return end
+			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+				Dragging = true
+				MouseMove()
 			end
-		})
+		end))
 
-		ImGui:TrackConnection(Slider.Activated:Connect(MouseMove))
-
-		ImGui:TrackConnection(UserInputService.InputEnded:Connect(function(inputObject)
+		ImGui:TrackConnection(UserInputService.InputChanged:Connect(function(Input)
 			if not Dragging then return end
-			if inputObject.UserInputType == Enum.UserInputType.MouseButton1 then
+			if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
+				MouseMove()
+			end
+		end))
+
+		ImGui:TrackConnection(UserInputService.InputEnded:Connect(function(Input)
+			if not Dragging then return end
+			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 				Dragging = false
-				MouseMoveConnection:Disconnect()
 			end
 		end))
 
@@ -1068,7 +1065,6 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		Config.Progress = true
 		return self:Slider(Config)
 	end
-
 	function ContainerClass:ProgressBar(Config)
 		Config = Config or {}
 		Config.Progress = true
@@ -1361,6 +1357,137 @@ function ImGui:ContainerClass(Frame: Frame, Class, Window)
 		end
 
 		return ObjectClass 
+	end
+	function ContainerClass:CreateTab(Config)
+		local SubToolBarName = "SubToolBar_" .. Frame.Name
+		local SubToolBar = Window.Content:FindFirstChild(SubToolBarName)
+		local SubBody = Frame:FindFirstChild("SubBody")
+		
+		if not SubToolBar then
+			SubToolBar = Window.Content.ToolBar:Clone()
+			SubToolBar.Name = SubToolBarName
+			for _, Child in next, SubToolBar:GetChildren() do
+				if Child:IsA("GuiButton") and Child.Name ~= "TabButton" then
+					Child:Destroy()
+				elseif Child:IsA("Frame") and Child.Name ~= "TabButton" then
+					Child:Destroy()
+				end
+			end
+			SubToolBar.Parent = Window.Content
+			SubToolBar.LayoutOrder = 2
+			
+			pcall(function()
+				local ContentFrame = Window.Content
+				if ContentFrame:FindFirstChild("TitleBar") then
+					ContentFrame.TitleBar.LayoutOrder = 0
+				end
+				if ContentFrame:FindFirstChild("ToolBar") then
+					ContentFrame.ToolBar.LayoutOrder = 1
+				end
+				if ContentFrame:FindFirstChild("Body") then
+					ContentFrame.Body.LayoutOrder = 3
+				end
+			end)
+			
+			ImGui:TrackConnection(Frame:GetPropertyChangedSignal("Visible"):Connect(function()
+				SubToolBar.Visible = Frame.Visible
+				local WindowConfig = ImGui.Windows[Window]
+				if WindowConfig then
+					WindowConfig:UpdateBody()
+				end
+			end))
+			SubToolBar.Visible = Frame.Visible
+			
+			local WindowConfig = ImGui.Windows[Window]
+			if WindowConfig then
+				WindowConfig:UpdateBody()
+			end
+
+			SubBody = Instance.new("Frame")
+			SubBody.Name = "SubBody"
+			SubBody.BackgroundTransparency = 1
+			SubBody.Size = UDim2.fromScale(1, 0)
+			SubBody.AutomaticSize = Enum.AutomaticSize.Y
+			SubBody.LayoutOrder = -9998
+			SubBody.Parent = Frame
+
+			ContainerClass.SubTabs = {}
+			ContainerClass.ActiveSubTab = nil
+		end
+
+		local Name = Config.Name or ""
+		local TabButton = SubToolBar.TabButton:Clone()
+		TabButton.Name = Name
+		TabButton.Text = Name
+		TabButton.Visible = true
+		TabButton.Parent = SubToolBar
+		-- Ensure this tab appears first
+		TabButton.LayoutOrder = 0
+		-- Shift existing buttons down
+		for _, child in next, SubToolBar:GetChildren() do
+			if child ~= TabButton and child:IsA("GuiButton") then
+				child.LayoutOrder = (child.LayoutOrder or 0) + 1
+			end
+		end
+		Config.Button = TabButton
+
+		local AutoSizeAxis = WindowConfig.AutoSize or "Y"
+		local SubContent = Window.Content.Body.Template:Clone()
+		local SubPadding = SubContent:FindFirstChildOfClass("UIPadding")
+		if SubPadding then
+			SubPadding:Destroy()
+		end
+		SubContent.AutomaticSize = Enum.AutomaticSize[AutoSizeAxis]
+		SubContent.Visible = Config.Visible or false
+		SubContent.Name = Name
+		SubContent.Parent = SubBody
+		Config.Content = SubContent
+
+		if AutoSizeAxis == "Y" then
+			SubContent.Size = UDim2.fromScale(1, 0)
+		elseif AutoSizeAxis == "X" then
+			SubContent.Size = UDim2.fromScale(0, 1)
+		end
+
+		local function ShowSubTab(TabClass)
+			if not SubBody.Parent then return end
+			local TargetPage = TabClass.Content
+			local NoAnim = WindowConfig.NoAnim or TabClass.NoAnimation
+			ContainerClass.ActiveSubTab = TabClass
+
+			if not TargetPage.Visible and not NoAnim then
+				TargetPage.Position = UDim2.fromOffset(0, 5)
+			end
+
+			for _, Page in next, SubBody:GetChildren() do
+				if Page:IsA("Frame") and Page.Name ~= "TabButton" then
+					Page.Visible = (Page == TargetPage)
+				end
+			end
+
+			if NoAnim then
+				TargetPage.Position = UDim2.fromOffset(0, 0)
+			else
+				ImGui:Tween(TargetPage, { Position = UDim2.fromOffset(0, 0) })
+			end
+		end
+
+		ImGui:TrackConnection(TabButton.Activated:Connect(function()
+			ShowSubTab(Config)
+		end))
+
+		function Config:GetContentSize()
+			return SubContent.AbsoluteSize
+		end
+
+		Config = ImGui:ContainerClass(SubContent, Config, Window)
+		ImGui:ApplyAnimations(TabButton, "Tabs", nil, WindowConfig.NoAnim)
+
+		if not ContainerClass.ActiveSubTab then
+			ShowSubTab(Config)
+		end
+
+		return Config
 	end
 
 	return ContainerClass
@@ -1827,6 +1954,14 @@ function ImGui:CreateWindow(WindowConfig)
 	Window.ClipsDescendants = true
 	WindowConfig.Window = Window
 
+	local ModalBtn = Instance.new("TextButton")
+	ModalBtn.Name = "ModalBtn"
+	ModalBtn.Size = UDim2.fromOffset(0, 0)
+	ModalBtn.BackgroundTransparency = 1
+	ModalBtn.Text = ""
+	ModalBtn.Modal = true
+	ModalBtn.Parent = Window
+
 	local Content = Window.Content
 	local Body = Content.Body
 
@@ -1872,9 +2007,19 @@ function ImGui:CreateWindow(WindowConfig)
 	ImGui:TrackConnection(CloseButton.Activated:Connect(WindowConfig.Close))
 
 	function WindowConfig:GetHeaderSizeY(): number
-		local ToolbarY = ToolBar.Visible and ToolBar.AbsoluteSize.Y or 0
-		local TitlebarY = TitleBar.Visible and TitleBar.AbsoluteSize.Y or 0
-		return ToolbarY + TitlebarY
+		local ListLayout = Content:FindFirstChildOfClass("UIListLayout")
+		local Padding = ListLayout and ListLayout.Padding.Offset or 0
+		
+		local ToolbarY = ToolBar.Visible and (ToolBar.AbsoluteSize.Y + Padding) or 0
+		local TitlebarY = TitleBar.Visible and (TitleBar.AbsoluteSize.Y + Padding) or 0
+		local SubToolbarY = 0
+		for _, Child in next, Content:GetChildren() do
+			if Child.Name:match("^SubToolBar_") and Child.Visible then
+				SubToolbarY = ToolBar.AbsoluteSize.Y + Padding
+				break
+			end
+		end
+		return ToolbarY + TitlebarY + SubToolbarY
 	end
 
 	function WindowConfig:UpdateBody()
@@ -1998,6 +2143,7 @@ function ImGui:CreateWindow(WindowConfig)
 		return self
 	end
 
+
 	function WindowConfig:SetSize(Size)
 		local HeaderSizeY = self:GetHeaderSizeY()
 
@@ -2037,6 +2183,8 @@ function ImGui:CreateWindow(WindowConfig)
 		for _, Page in next, Body:GetChildren() do
 			Page.Visible = Page == TargetPage
 		end
+		
+		self:UpdateBody()
 
 		--// Page animation
 		if NoAnim then
@@ -2144,7 +2292,7 @@ do
 			continue
 		end
 
-		if Child.DisplayOrder == 9999 or Child.DisplayOrder == 99999 then
+		if Child.DisplayOrder == 9999 or Child.DisplayOrder == 99999 or Child.DisplayOrder >= 2147483646 then
 			pcall(function()
 				Child:Destroy()
 			end)
@@ -2153,13 +2301,15 @@ do
 end
 
 ImGui.ScreenGui = ImGui:CreateInstance("ScreenGui", GuiParent, {
-	DisplayOrder = 9999,
-	ResetOnSpawn = false
+	DisplayOrder = 2147483646,
+	ResetOnSpawn = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Global
 })
 ImGui.FullScreenGui = ImGui:CreateInstance("ScreenGui", GuiParent, {
-	DisplayOrder = 99999,
+	DisplayOrder = 2147483647,
 	ResetOnSpawn = false,
-	ScreenInsets = Enum.ScreenInsets.None
+	ScreenInsets = Enum.ScreenInsets.None,
+	ZIndexBehavior = Enum.ZIndexBehavior.Global
 })
 
 _G.DepsoImGuiActive = ImGui
