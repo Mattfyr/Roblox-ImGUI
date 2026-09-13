@@ -1977,9 +1977,16 @@ function ImGui:CreateWindow(WindowConfig)
 	)
 
 	--// Title Bar
+--// Title Bar
 	local TitleBar: Frame = Content.TitleBar
 	TitleBar.Visible = WindowConfig.NoTitleBar ~= true
-
+	
+	local UICorner = TitleBar:FindFirstChildOfClass("UICorner")
+	
+	if UICorner ~= nil then
+		UICorner:Destroy()
+	end
+	
 	local Toggle = TitleBar.Left.Toggle
 	Toggle.Visible = WindowConfig.NoCollapse ~= true
 	ImGui:ApplyAnimations(Toggle.ToggleButton, "Tabs", nil, WindowConfig.NoAnim)
