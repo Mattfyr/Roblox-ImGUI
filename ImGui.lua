@@ -167,15 +167,14 @@ local AddionalStyles = {
 	end,
 
 	[{
-		Name="CornerRadius",
-		Recursive=true
+		Name = "CornerRadius",
+		Recursive = true
 	}] = function(GuiObject: GuiObject, Value, Class)
 		local UICorner = GuiObject:FindFirstChildOfClass("UICorner")
-		if not UICorner then
-			UICorner = ImGui:CreateInstance("UICorner", GuiObject)
+	
+		if UICorner ~= nil then
+			UICorner:Destroy()
 		end
-
-		UICorner.CornerRadius = Class.CornerRadius
 	end,
 
 	[{
